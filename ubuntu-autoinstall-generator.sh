@@ -29,7 +29,7 @@ usage() {
         cat <<EOF
 Usage: $(basename "${BASH_SOURCE[0]}") [-h] [-v] [-a] [-e] [-u user-data-file] [-m meta-data-file] [-k] [-c] [-r] [-s source-iso-file] [-d destination-iso-file]
 
-💁 This script will create fully-automated Ubuntu 20.04 Focal Fossa installation media.
+💁 This script will create fully-automated Ubuntu 22.04 Jammy installation media.
 
 Available options:
 
@@ -40,7 +40,7 @@ Available options:
                         autoinstall user-data and meta-data files.
                         For more information see: https://ubuntu.com/server/docs/install/autoinstall-quickstart
 -e, --use-hwe-kernel    Force the generated ISO to boot using the hardware enablement (HWE) kernel. Not supported
-                        by early Ubuntu 20.04 release ISOs.
+                        by early Ubuntu 22.04 release ISOs.
 -u, --user-data         Path to user-data file. Required if using -a
 -m, --meta-data         Path to meta-data file. Will be an empty file if not specified and using -a
 -k, --no-verify         Disable GPG verification of the source ISO file. By default SHA256SUMS-$today and
@@ -51,7 +51,7 @@ Available options:
 -c, --no-md5            Disable MD5 checksum on boot
 -r, --use-release-iso   Use the current release ISO instead of the daily ISO. The file will be used if it already
                         exists.
--s, --source            Source ISO file. By default the latest daily ISO for Ubuntu 20.04 will be downloaded
+-s, --source            Source ISO file. By default the latest daily ISO for Ubuntu 22.04 will be downloaded
                         and saved as ${script_dir}/ubuntu-original-$today.iso
                         That file will be used by default if it already exists.
 -d, --destination       Destination ISO file. By default ${script_dir}/ubuntu-autoinstall-$today.iso will be
@@ -64,8 +64,8 @@ function parse_params() {
         # default values of variables set from params
         user_data_file=''
         meta_data_file=''
-        download_url="https://cdimage.ubuntu.com/ubuntu-server/focal/daily-live/current"
-        download_iso="focal-live-server-amd64.iso"
+        download_url="https://cdimage.ubuntu.com/ubuntu-server/jammy/daily-live/current"
+        download_iso="jammy-live-server-amd64.iso"
         original_iso="ubuntu-original-$today.iso"
         source_iso="${script_dir}/${original_iso}"
         destination_iso="${script_dir}/ubuntu-autoinstall-$today.iso"
@@ -121,7 +121,7 @@ function parse_params() {
         fi
 
         if [ "${use_release_iso}" -eq 1 ]; then
-                download_url="https://releases.ubuntu.com/focal"
+                download_url="https://releases.ubuntu.com/jammy"
                 log "🔎 Checking for current release..."
                 download_iso=$(curl -sSL "${download_url}" | grep -oP 'ubuntu-20\.04\.\d*-live-server-amd64\.iso' | head -n 1)
                 original_iso="${download_iso}"
@@ -154,11 +154,10 @@ log "🔎 Checking for required utilities..."
 [[ ! -x "$(command -v sed)" ]] && die "💥 sed is not installed. On Ubuntu, install the 'sed' package."
 [[ ! -x "$(command -v curl)" ]] && die "💥 curl is not installed. On Ubuntu, install the 'curl' package."
 [[ ! -x "$(command -v gpg)" ]] && die "💥 gpg is not installed. On Ubuntu, install the 'gpg' package."
-[[ ! -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]] && die "💥 isolinux is not installed. On Ubuntu, install the 'isolinux' package."
 log "👍 All required utilities are installed."
 
 if [ ! -f "${source_iso}" ]; then
-        log "🌎 Downloading ISO image for Ubuntu 20.04 Focal Fossa..."
+        log "🌎 Downloading ISO image for Ubuntu 22.04 Jammy ..."
         curl -NsSL "${download_url}/${download_iso}" -o "${source_iso}"
         log "👍 Downloaded and saved to ${source_iso}"
 else
@@ -216,8 +215,6 @@ log "👍 Extracted to $tmpdir"
 if [ ${use_hwe_kernel} -eq 1 ]; then
         if grep -q "hwe-vmlinuz" "$tmpdir/boot/grub/grub.cfg"; then
                 log "☑️ Destination ISO will use HWE kernel."
-                sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/isolinux/txt.cfg"
-                sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/isolinux/txt.cfg"
                 sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/boot/grub/grub.cfg"
                 sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/boot/grub/grub.cfg"
                 sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/boot/grub/loopback.cfg"
@@ -228,7 +225,6 @@ if [ ${use_hwe_kernel} -eq 1 ]; then
 fi
 
 log "🧩 Adding autoinstall parameter to kernel command line..."
-sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/isolinux/txt.cfg"
 sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/boot/grub/grub.cfg"
 sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/boot/grub/loopback.cfg"
 log "👍 Added parameter to UEFI and BIOS kernel command lines."
@@ -242,7 +238,6 @@ if [ ${all_in_one} -eq 1 ]; then
         else
                 touch "$tmpdir/nocloud/meta-data"
         fi
-        sed -i -e 's,---, ds=nocloud;s=/cdrom/nocloud/  ---,g' "$tmpdir/isolinux/txt.cfg"
         sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/nocloud/  ---,g' "$tmpdir/boot/grub/grub.cfg"
         sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/nocloud/  ---,g' "$tmpdir/boot/grub/loopback.cfg"
         log "👍 Added data and configured kernel command line."
@@ -263,7 +258,42 @@ fi
 
 log "📦 Repackaging extracted files into an ISO image..."
 cd "$tmpdir"
-xorriso -as mkisofs -r -V "ubuntu-autoinstall-$today" -J -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin -boot-info-table -input-charset utf-8 -eltorito-alt-boot -e boot/grub/efi.img -no-emul-boot -isohybrid-gpt-basdat -o "${destination_iso}" . &>/dev/null
+# Extract the MBR template for --grub2-mbr
+# We only need the x86 code. All partition stuff will be newly created.
+dd if="${source_iso}" bs=1 count=432 of=boot_hybrid.img
+
+# The EFI partition is not a data file inside the ISO any more.
+# So extract the EFI partition image image for -append_partition
+# Get the values from the orig iso
+# xorriso -indev ~/Downloads/ubuntu-22.04-live-server-amd64.iso -report_el_torito as_mkisofs
+#   [...]
+#   -append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b --interval:local_fs:2855516d-2864011d::'/home/mknight/Downloads/ubuntu-22.04-live-server-amd64.iso'
+#   :local_fs:2855516d-2864011d::
+# NOTICE: Number on right is larger than number on left, reverse them to subtract
+#   2855516d-2864011d : 2864011 - 2855516 + 1 = 8496
+# NOTICE: Very important that skip and count match the ACTUAL source ISO image, they do differ
+dd if="${source_iso}" bs=512 skip=2855516 count=8496 of=efi.img
+
+xorriso -as mkisofs \
+	-r \
+	-V "ubuntu-autoinstall-$today" \
+	--grub2-mbr boot_hybrid.img \
+	-partition_offset 16 \
+	--mbr-force-bootable \
+	-append_partition 2 28732ac11ff8d211ba4b00a0c93ec93b efi.img \
+	-appended_part_as_gpt \
+	-iso_mbr_part_type a2a0d0ebe5b9334487c068b6b72699c7 \
+	-c '/boot.catalog' \
+	-b '/boot/grub/i386-pc/eltorito.img' \
+	-no-emul-boot \
+	-boot-load-size 4 \
+	-boot-info-table \
+	--grub2-boot-info \
+	-eltorito-alt-boot \
+	-e '--interval:appended_partition_2:::' \
+	-no-emul-boot \
+	-o "${destination_iso}" .
+#	-o "${destination_iso}" . &>/dev/null
 cd "$OLDPWD"
 log "👍 Repackaged into ${destination_iso}"
 

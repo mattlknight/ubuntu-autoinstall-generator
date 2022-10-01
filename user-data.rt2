@@ -1,0 +1,14 @@
+#cloud-config
+autoinstall:
+  version: 1
+  identity:
+    hostname: rt2new
+    password: "$6$CnEbUXLfoFfmUNzq$pw9fOi8rYme3mBNtY6CByjivEJ1fH5wC.GsGAZ/oDr5jVRScGK6hokBz4MTX4ZxXwfQoNkUNiUlZ.qRpEgUVu/"
+    username: localadmin
+  late-commands:
+    # shut-down the host to avoid an infinite installer loop
+    - shutdown -h now
+  user-data:
+    # shutdown after first host initial provisioning
+    power_state:
+      mode: poweroff
