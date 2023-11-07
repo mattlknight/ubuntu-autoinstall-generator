@@ -13,6 +13,7 @@ trap cleanup SIGINT SIGTERM ERR EXIT
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 [[ ! -x "$(command -v date)" ]] && echo "💥 date command not found." && exit 1
 today=$(date +"%Y-%m-%d")
+now=$(date +"%Y-%m-%d-%H-%M-%S")
 
 function log() {
         echo >&2 -e "[$(date +"%Y-%m-%d %H:%M:%S")] ${1-}"
@@ -54,7 +55,7 @@ Available options:
 -s, --source            Source ISO file. By default the latest daily ISO for Ubuntu 22.04 will be downloaded
                         and saved as ${script_dir}/ubuntu-original-$today.iso
                         That file will be used by default if it already exists.
--d, --destination       Destination ISO file. By default ${script_dir}/ubuntu-autoinstall-$today.iso will be
+-d, --destination       Destination ISO file. By default ${script_dir}/ubuntu-autoinstall-$now.iso will be
                         created, overwriting any existing file.
 EOF
         exit
@@ -68,7 +69,7 @@ function parse_params() {
         download_iso="jammy-live-server-amd64.iso"
         original_iso="ubuntu-original-$today.iso"
         source_iso="${script_dir}/${original_iso}"
-        destination_iso="${script_dir}/ubuntu-autoinstall-$today.iso"
+        destination_iso="${script_dir}/ubuntu-autoinstall-$now.iso"
         sha_suffix="${today}"
         gpg_verify=1
         all_in_one=0
@@ -226,6 +227,8 @@ fi
 
 log "🧩 Adding autoinstall parameter to kernel command line..."
 sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/boot/grub/grub.cfg"
+sed -i -e 's/^set timeout.*/set timeout=5/' "$tmpdir/boot/grub/grub.cfg"
+sed -i -e "s/Server/Server Matt Knight $now/g" "$tmpdir/boot/grub/grub.cfg"
 sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/boot/grub/loopback.cfg"
 log "👍 Added parameter to UEFI and BIOS kernel command lines."
 
@@ -238,8 +241,8 @@ if [ ${all_in_one} -eq 1 ]; then
         else
                 touch "$tmpdir/nocloud/meta-data"
         fi
-        sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/nocloud/  ---,g' "$tmpdir/boot/grub/grub.cfg"
-        sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/nocloud/  ---,g' "$tmpdir/boot/grub/loopback.cfg"
+        sed -i -e 's,---, autoinstall ds=nocloud\\\;s=/cdrom/nocloud/  ---,g' "$tmpdir/boot/grub/grub.cfg"
+        sed -i -e 's,---, autoinstall ds=nocloud\\\;s=/cdrom/nocloud/  ---,g' "$tmpdir/boot/grub/loopback.cfg"
         log "👍 Added data and configured kernel command line."
 fi
 
